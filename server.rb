@@ -1,0 +1,44 @@
+require "sinatra"
+require "pg"
+require "pry"
+set :bind, '0.0.0.0'  # bind to all interfaces
+
+system "psql todo < schema.sql"
+system "psql todo < seeder.sql"
+
+def db_connection
+  begin
+    connection = PG.connect(dbname: "todo")
+    yield(connection)
+  ensure
+    connection.close
+  end
+end
+
+get "/" do
+  redirect "/tasks"
+end
+
+get "/tasks" do
+  @tasks = db_connection do |conn|
+    conn.exec("SELECT name FROM tasks").to_a
+  end
+  erb :index
+end
+
+get "/tasks/:task_name" do
+  @task_name = params[:task_name]
+  erb :show
+end
+
+post "/tasks" do
+  # Read the input from the form the user filled out
+  task = params["task_name"]
+  # Insert new task into the database
+  db_connection do |conn|
+    conn.exec_params("INSERT INTO tasks (name) VALUES ($1)", [task])
+  end
+  # Send the user back to the home page which shows
+  # the list of tasks
+  redirect "/tasks"
+end
